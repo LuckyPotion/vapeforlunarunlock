@@ -41,17 +41,24 @@ public final class LunarUnlockUtil {
      * Attempts unlock without pre-checking for Lunar Client
      */
     public static UnlockResult unlockAll() {
+        System.out.println("[LunarUnlocker] Starting unlock process...");
+
         // Try to find Lunar Client singleton
+        System.out.println("[LunarUnlocker] Attempting to find Lunar Client singleton...");
         Object lunarClient = findLunarClientSingleton();
 
         if (lunarClient == null) {
+            System.out.println("[LunarUnlocker] Standard search failed, trying aggressive search...");
             // Try harder - search for any object that might be the Lunar client
             lunarClient = findLunarClientAggressively();
         }
 
         if (lunarClient == null) {
-            return UnlockResult.failure("Lunar Client not found. Checked all known locations.");
+            System.out.println("[LunarUnlocker] ERROR: Lunar Client instance not found after all attempts");
+            return UnlockResult.failure("Lunar Client not found. Are you running Lunar Client 1.8.9?");
         }
+
+        System.out.println("[LunarUnlocker] Found Lunar Client instance: " + lunarClient.getClass().getName());
 
         List<String> unlocked = new ArrayList<>();
         List<String> failed = new ArrayList<>();
@@ -59,43 +66,61 @@ public final class LunarUnlockUtil {
         // Try to unlock each cosmetic system
         boolean anySuccess = false;
 
+        System.out.println("[LunarUnlocker] Attempting to unlock cosmetics v2...");
         if (applyUnlock(lunarClient, COSMETIC_LOGIN_V2, true, false)) {
             unlocked.add("cosmetics (v2)");
             anySuccess = true;
-        } else if (applyUnlock(lunarClient, COSMETIC_LOGIN_V1, true, false)) {
-            unlocked.add("cosmetics (v1)");
-            anySuccess = true;
+            System.out.println("[LunarUnlocker] SUCCESS: Cosmetics v2 unlocked");
         } else {
-            failed.add("cosmetics");
+            System.out.println("[LunarUnlocker] Cosmetics v2 failed, trying v1...");
+            if (applyUnlock(lunarClient, COSMETIC_LOGIN_V1, true, false)) {
+                unlocked.add("cosmetics (v1)");
+                anySuccess = true;
+                System.out.println("[LunarUnlocker] SUCCESS: Cosmetics v1 unlocked");
+            } else {
+                failed.add("cosmetics");
+                System.out.println("[LunarUnlocker] FAILED: Both cosmetics versions failed");
+            }
         }
 
+        System.out.println("[LunarUnlocker] Attempting to unlock emotes...");
         if (applyUnlock(lunarClient, EMOTE_LOGIN, false, false)) {
             unlocked.add("emotes");
             anySuccess = true;
+            System.out.println("[LunarUnlocker] SUCCESS: Emotes unlocked");
         } else {
             failed.add("emotes");
+            System.out.println("[LunarUnlocker] FAILED: Emotes unlock failed");
         }
 
+        System.out.println("[LunarUnlocker] Attempting to unlock badges...");
         if (applyUnlock(lunarClient, BADGE_LOGIN, false, false)) {
             unlocked.add("badges");
             anySuccess = true;
+            System.out.println("[LunarUnlocker] SUCCESS: Badges unlocked");
         } else {
             failed.add("badges");
+            System.out.println("[LunarUnlocker] FAILED: Badges unlock failed");
         }
 
+        System.out.println("[LunarUnlocker] Attempting to unlock sprays...");
         if (applyUnlock(lunarClient, SPRAY_LOGIN, false, false)) {
             unlocked.add("sprays");
             anySuccess = true;
+            System.out.println("[LunarUnlocker] SUCCESS: Sprays unlocked");
         } else {
             failed.add("sprays");
+            System.out.println("[LunarUnlocker] FAILED: Sprays unlock failed");
         }
 
         // If at least one system was unlocked, consider it a success
         if (anySuccess) {
+            System.out.println("[LunarUnlocker] Unlock completed with partial success");
             return UnlockResult.success(unlocked, failed);
         }
 
         // All failed
+        System.out.println("[LunarUnlocker] ERROR: All unlock attempts failed");
         return UnlockResult.failure("All unlock attempts failed. Lunar cosmetic systems not accessible.");
     }
 
@@ -295,19 +320,27 @@ public final class LunarUnlockUtil {
      */
     private static Object findLunarClientSingleton() {
         try {
+            System.out.println("[LunarUnlocker] Searching for Lunar Client class...");
             // Try the primary method: com.moonsworth.lunar.LunarClient
             Class<?> lunarClass = null;
             try {
+                System.out.println("[LunarUnlocker] Trying: com.moonsworth.lunar.LunarClient");
                 lunarClass = Class.forName("com.moonsworth.lunar.LunarClient");
+                System.out.println("[LunarUnlocker] Found class: com.moonsworth.lunar.LunarClient");
             } catch (ClassNotFoundException e1) {
                 // Try alternative class names
                 try {
+                    System.out.println("[LunarUnlocker] Trying: lunar.LunarClient");
                     lunarClass = Class.forName("lunar.LunarClient");
+                    System.out.println("[LunarUnlocker] Found class: lunar.LunarClient");
                 } catch (ClassNotFoundException e2) {
                     try {
+                        System.out.println("[LunarUnlocker] Trying: com.lunarclient.LunarClient");
                         lunarClass = Class.forName("com.lunarclient.LunarClient");
+                        System.out.println("[LunarUnlocker] Found class: com.lunarclient.LunarClient");
                     } catch (ClassNotFoundException e3) {
                         // Could not find any Lunar client class
+                        System.out.println("[LunarUnlocker] No Lunar Client class found in standard search");
                         return null;
                     }
                 }
@@ -317,50 +350,67 @@ public final class LunarUnlockUtil {
                 return null;
             }
 
+            System.out.println("[LunarUnlocker] Found Lunar class: " + lunarClass.getName());
+            System.out.println("[LunarUnlocker] Attempting to get singleton instance...");
+
             // Try getInstance() method
             try {
+                System.out.println("[LunarUnlocker] Trying getInstance() method...");
                 Method getInstance = lunarClass.getMethod("getInstance");
                 Object instance = getInstance.invoke(null);
                 if (instance != null) {
+                    System.out.println("[LunarUnlocker] Got instance via getInstance(): " + instance.getClass().getName());
                     return instance;
                 }
             } catch (NoSuchMethodException | SecurityException e) {
-                // Method doesn't exist, try field
+                System.out.println("[LunarUnlocker] getInstance() method not found");
             }
 
             // Try INSTANCE field
             try {
+                System.out.println("[LunarUnlocker] Trying INSTANCE field...");
                 Field instanceField = lunarClass.getField("INSTANCE");
                 Object instance = instanceField.get(null);
                 if (instance != null) {
+                    System.out.println("[LunarUnlocker] Got instance via INSTANCE field: " + instance.getClass().getName());
                     return instance;
                 }
             } catch (NoSuchFieldException e) {
-                // Field doesn't exist
+                System.out.println("[LunarUnlocker] INSTANCE field not found");
             }
 
             // Try instance field (lowercase)
             try {
+                System.out.println("[LunarUnlocker] Trying instance field...");
                 Field instanceField = lunarClass.getField("instance");
                 Object instance = instanceField.get(null);
                 if (instance != null) {
+                    System.out.println("[LunarUnlocker] Got instance via instance field: " + instance.getClass().getName());
                     return instance;
                 }
             } catch (NoSuchFieldException e) {
-                // Field doesn't exist
+                System.out.println("[LunarUnlocker] instance field not found");
             }
 
             // Try getDeclaredField for private fields
             try {
+                System.out.println("[LunarUnlocker] Trying private INSTANCE field...");
                 Field instanceField = lunarClass.getDeclaredField("INSTANCE");
                 instanceField.setAccessible(true);
-                return instanceField.get(null);
+                Object instance = instanceField.get(null);
+                if (instance != null) {
+                    System.out.println("[LunarUnlocker] Got instance via private INSTANCE field: " + instance.getClass().getName());
+                    return instance;
+                }
             } catch (NoSuchFieldException e) {
-                // Last attempt failed
+                System.out.println("[LunarUnlocker] Private INSTANCE field not found");
             }
 
+            System.out.println("[LunarUnlocker] No singleton instance found in class");
             return null;
         } catch (Exception e) {
+            System.out.println("[LunarUnlocker] Exception in findLunarClientSingleton: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
@@ -370,10 +420,15 @@ public final class LunarUnlockUtil {
      */
     private static Object findLunarClientAggressively() {
         try {
+            System.out.println("[LunarUnlocker] Starting aggressive search for Lunar Client...");
             // Search through all loaded classes for Lunar-related patterns
             ClassLoader[] loaders = getClassLoaders();
+            System.out.println("[LunarUnlocker] Checking " + loaders.length + " class loaders...");
 
-            for (ClassLoader loader : loaders) {
+            for (int i = 0; i < loaders.length; i++) {
+                ClassLoader loader = loaders[i];
+                System.out.println("[LunarUnlocker] Checking loader " + (i + 1) + ": " + loader.getClass().getName());
+
                 // Try to find any class with "Lunar" in its name
                 try {
                     // Common Lunar Client class patterns
@@ -388,15 +443,20 @@ public final class LunarUnlockUtil {
 
                     for (String className : possibleClasses) {
                         try {
+                            System.out.println("[LunarUnlocker] Aggressive search trying: " + className);
                             Class<?> clazz = Class.forName(className, false, loader);
+                            System.out.println("[LunarUnlocker] Found class: " + className);
 
                             // Try all possible singleton patterns
                             Object instance = tryGetSingletonInstance(clazz);
                             if (instance != null) {
+                                System.out.println("[LunarUnlocker] Aggressive search SUCCESS! Found instance: " + instance.getClass().getName());
                                 return instance;
                             }
-                        } catch (Exception ignored) {
+                        } catch (ClassNotFoundException e) {
                             // Continue to next class
+                        } catch (Exception e) {
+                            System.out.println("[LunarUnlocker] Exception checking " + className + ": " + e.getMessage());
                         }
                     }
                 } catch (Exception ignored) {
@@ -404,8 +464,11 @@ public final class LunarUnlockUtil {
                 }
             }
 
+            System.out.println("[LunarUnlocker] Aggressive search found no instances");
             return null;
         } catch (Exception e) {
+            System.out.println("[LunarUnlocker] Exception in aggressive search: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
