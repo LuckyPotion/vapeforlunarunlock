@@ -29,60 +29,74 @@ public final class LunarUnlockUtil {
 
     /**
      * Check if Lunar Client runtime is available
+     * Now always returns true to allow unlock attempts
      */
     public static boolean isAvailable() {
-        if (lunarRuntime == null) {
-            lunarRuntime = detectLunarRuntime();
-        }
-        return lunarRuntime;
+        // Always return true - let the unlock attempt itself determine if Lunar is present
+        return true;
     }
 
     /**
      * Unlock all cosmetic systems
-     * Will attempt unlock even if Lunar detection is uncertain
+     * Attempts unlock without pre-checking for Lunar Client
      */
     public static UnlockResult unlockAll() {
-        // Try to find Lunar Client singleton (even if detection is uncertain)
+        // Try to find Lunar Client singleton
         Object lunarClient = findLunarClientSingleton();
+
         if (lunarClient == null) {
-            return UnlockResult.failure("Lunar Client instance not found. Make sure you're running Lunar Client 1.8.9.");
+            // Try harder - search for any object that might be the Lunar client
+            lunarClient = findLunarClientAggressively();
+        }
+
+        if (lunarClient == null) {
+            return UnlockResult.failure("Lunar Client not found. Checked all known locations.");
         }
 
         List<String> unlocked = new ArrayList<>();
         List<String> failed = new ArrayList<>();
 
         // Try to unlock each cosmetic system
+        boolean anySuccess = false;
+
         if (applyUnlock(lunarClient, COSMETIC_LOGIN_V2, true, false)) {
             unlocked.add("cosmetics (v2)");
+            anySuccess = true;
         } else if (applyUnlock(lunarClient, COSMETIC_LOGIN_V1, true, false)) {
             unlocked.add("cosmetics (v1)");
+            anySuccess = true;
         } else {
             failed.add("cosmetics");
         }
 
         if (applyUnlock(lunarClient, EMOTE_LOGIN, false, false)) {
             unlocked.add("emotes");
+            anySuccess = true;
         } else {
             failed.add("emotes");
         }
 
         if (applyUnlock(lunarClient, BADGE_LOGIN, false, false)) {
             unlocked.add("badges");
+            anySuccess = true;
         } else {
             failed.add("badges");
         }
 
         if (applyUnlock(lunarClient, SPRAY_LOGIN, false, false)) {
             unlocked.add("sprays");
+            anySuccess = true;
         } else {
             failed.add("sprays");
         }
 
-        if (!failed.isEmpty()) {
-            return UnlockResult.failure("Could not apply unlock (" + String.join(", ", failed) + ")");
+        // If at least one system was unlocked, consider it a success
+        if (anySuccess) {
+            return UnlockResult.success(unlocked, failed);
         }
 
-        return UnlockResult.success(unlocked, failed);
+        // All failed
+        return UnlockResult.failure("All unlock attempts failed. Lunar cosmetic systems not accessible.");
     }
 
     /**
@@ -344,6 +358,106 @@ public final class LunarUnlockUtil {
             } catch (NoSuchFieldException e) {
                 // Last attempt failed
             }
+
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Aggressively search for Lunar Client instance by checking all loaded classes
+     */
+    private static Object findLunarClientAggressively() {
+        try {
+            // Search through all loaded classes for Lunar-related patterns
+            ClassLoader[] loaders = getClassLoaders();
+
+            for (ClassLoader loader : loaders) {
+                // Try to find any class with "Lunar" in its name
+                try {
+                    // Common Lunar Client class patterns
+                    String[] possibleClasses = {
+                        "com.moonsworth.lunar.LunarClient",
+                        "com.lunarclient.LunarClient",
+                        "lunar.LunarClient",
+                        "net.lunarclient.LunarClient",
+                        "com.moonsworth.lunar.client.LunarClient",
+                        "com.lunarclient.client.LunarClient"
+                    };
+
+                    for (String className : possibleClasses) {
+                        try {
+                            Class<?> clazz = Class.forName(className, false, loader);
+
+                            // Try all possible singleton patterns
+                            Object instance = tryGetSingletonInstance(clazz);
+                            if (instance != null) {
+                                return instance;
+                            }
+                        } catch (Exception ignored) {
+                            // Continue to next class
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // Continue to next loader
+                }
+            }
+
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Try all possible ways to get singleton instance from a class
+     */
+    private static Object tryGetSingletonInstance(Class<?> clazz) {
+        try {
+            // Method 1: getInstance()
+            try {
+                Method getInstance = clazz.getMethod("getInstance");
+                Object instance = getInstance.invoke(null);
+                if (instance != null) return instance;
+            } catch (Exception ignored) {}
+
+            // Method 2: get()
+            try {
+                Method get = clazz.getMethod("get");
+                Object instance = get.invoke(null);
+                if (instance != null) return instance;
+            } catch (Exception ignored) {}
+
+            // Method 3: INSTANCE field
+            try {
+                Field field = clazz.getField("INSTANCE");
+                Object instance = field.get(null);
+                if (instance != null) return instance;
+            } catch (Exception ignored) {}
+
+            // Method 4: instance field
+            try {
+                Field field = clazz.getField("instance");
+                Object instance = field.get(null);
+                if (instance != null) return instance;
+            } catch (Exception ignored) {}
+
+            // Method 5: Check all static fields
+            try {
+                Field[] fields = clazz.getDeclaredFields();
+                for (Field field : fields) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                        try {
+                            field.setAccessible(true);
+                            Object instance = field.get(null);
+                            if (instance != null && instance.getClass() == clazz) {
+                                return instance;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception ignored) {}
 
             return null;
         } catch (Exception e) {
