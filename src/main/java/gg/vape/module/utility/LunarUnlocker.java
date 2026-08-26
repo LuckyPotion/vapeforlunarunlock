@@ -22,7 +22,8 @@ public class LunarUnlocker extends UtilityMod {
 
     public LunarUnlocker() {
         super("LunarUnlocker", "Unlocks all Lunar Client cosmetics (1.8.9)");
-        this.setDefaultVisibility(false);
+        // Make visible by default so users can find it
+        this.setDefaultVisibility(true);
     }
 
     @Override
