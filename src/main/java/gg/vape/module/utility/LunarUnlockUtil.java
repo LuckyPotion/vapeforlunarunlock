@@ -39,16 +39,13 @@ public final class LunarUnlockUtil {
 
     /**
      * Unlock all cosmetic systems
+     * Will attempt unlock even if Lunar detection is uncertain
      */
     public static UnlockResult unlockAll() {
-        if (!isAvailable()) {
-            return UnlockResult.failure("");
-        }
-
-        // Find Lunar Client singleton instance
+        // Try to find Lunar Client singleton (even if detection is uncertain)
         Object lunarClient = findLunarClientSingleton();
         if (lunarClient == null) {
-            return UnlockResult.failure("Could not find Lunar instance. Try again in a world.");
+            return UnlockResult.failure("Lunar Client instance not found. Make sure you're running Lunar Client 1.8.9.");
         }
 
         List<String> unlocked = new ArrayList<>();
@@ -248,17 +245,28 @@ public final class LunarUnlockUtil {
 
     /**
      * Detect if we're running in Lunar Client
+     * This is now more lenient and will return true if any Lunar classes are found
      */
     private static boolean detectLunarRuntime() {
         try {
             ClassLoader[] loaders = getClassLoaders();
             for (ClassLoader loader : loaders) {
                 try {
-                    // Try to load a Lunar-specific class
+                    // Try multiple Lunar-specific classes
                     Class.forName("com.moonsworth.lunar.LunarClient", false, loader);
                     return true;
-                } catch (ClassNotFoundException e) {
-                    // Continue checking
+                } catch (ClassNotFoundException e1) {
+                    try {
+                        Class.forName("com.lunarclient.websocket.LunarWebSocket", false, loader);
+                        return true;
+                    } catch (ClassNotFoundException e2) {
+                        try {
+                            Class.forName("com.lunarclient.bukkitapi.LunarClientAPI", false, loader);
+                            return true;
+                        } catch (ClassNotFoundException e3) {
+                            // Continue checking
+                        }
+                    }
                 }
             }
             return false;
@@ -269,24 +277,75 @@ public final class LunarUnlockUtil {
 
     /**
      * Find Lunar Client singleton instance
+     * Tries multiple methods to locate the instance
      */
     private static Object findLunarClientSingleton() {
         try {
-            Class<?> lunarClass = Class.forName("com.moonsworth.lunar.LunarClient");
+            // Try the primary method: com.moonsworth.lunar.LunarClient
+            Class<?> lunarClass = null;
+            try {
+                lunarClass = Class.forName("com.moonsworth.lunar.LunarClient");
+            } catch (ClassNotFoundException e1) {
+                // Try alternative class names
+                try {
+                    lunarClass = Class.forName("lunar.LunarClient");
+                } catch (ClassNotFoundException e2) {
+                    try {
+                        lunarClass = Class.forName("com.lunarclient.LunarClient");
+                    } catch (ClassNotFoundException e3) {
+                        // Could not find any Lunar client class
+                        return null;
+                    }
+                }
+            }
+
+            if (lunarClass == null) {
+                return null;
+            }
 
             // Try getInstance() method
             try {
                 Method getInstance = lunarClass.getMethod("getInstance");
-                return getInstance.invoke(null);
-            } catch (NoSuchMethodException e) {
-                // Try INSTANCE field
-                try {
-                    Field instanceField = lunarClass.getField("INSTANCE");
-                    return instanceField.get(null);
-                } catch (NoSuchFieldException ex) {
-                    return null;
+                Object instance = getInstance.invoke(null);
+                if (instance != null) {
+                    return instance;
                 }
+            } catch (NoSuchMethodException | SecurityException e) {
+                // Method doesn't exist, try field
             }
+
+            // Try INSTANCE field
+            try {
+                Field instanceField = lunarClass.getField("INSTANCE");
+                Object instance = instanceField.get(null);
+                if (instance != null) {
+                    return instance;
+                }
+            } catch (NoSuchFieldException e) {
+                // Field doesn't exist
+            }
+
+            // Try instance field (lowercase)
+            try {
+                Field instanceField = lunarClass.getField("instance");
+                Object instance = instanceField.get(null);
+                if (instance != null) {
+                    return instance;
+                }
+            } catch (NoSuchFieldException e) {
+                // Field doesn't exist
+            }
+
+            // Try getDeclaredField for private fields
+            try {
+                Field instanceField = lunarClass.getDeclaredField("INSTANCE");
+                instanceField.setAccessible(true);
+                return instanceField.get(null);
+            } catch (NoSuchFieldException e) {
+                // Last attempt failed
+            }
+
+            return null;
         } catch (Exception e) {
             return null;
         }

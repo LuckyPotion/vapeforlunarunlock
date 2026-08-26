@@ -6,7 +6,7 @@ import gg.vape.notification.NotificationType;
 import gg.vape.wrapper.impl.Minecraft;
 
 /**
- * LunarUnlocker - Unlocks Lunar Client cosmetics client-side (1.8.9 only)
+ * LunarUnlocker - Unlocks Lunar Client cosmetics client-side
  *
  * This module bypasses Lunar Client's cosmetic verification by:
  * 1. Detecting Lunar Client runtime environment
@@ -14,13 +14,14 @@ import gg.vape.wrapper.impl.Minecraft;
  * 3. Injecting fake login responses for cosmetics, emotes, badges, and sprays
  * 4. Setting all-access flags via reflection
  *
+ * Works on Minecraft 1.8.9 (Forge/Vanilla) when Lunar Client is running.
  * Based on Meowtils LunarUnlocker extension analysis.
  * For educational and research purposes only.
  */
 public class LunarUnlocker extends UtilityMod {
 
     public LunarUnlocker() {
-        super("LunarUnlocker", "Unlocks all Lunar Client cosmetics (1.8.9 only)");
+        super("LunarUnlocker", "Unlocks all Lunar Client cosmetics (1.8.9)");
         this.setDefaultVisibility(false);
     }
 
@@ -41,19 +42,7 @@ public class LunarUnlocker extends UtilityMod {
             return;
         }
 
-        // Check if Lunar Client is detected
-        if (!LunarUnlockUtil.isAvailable()) {
-            Vape.INSTANCE.getNotificationManager().show(
-                "LunarUnlocker",
-                "Lunar Client was not detected.",
-                NotificationType.WARNING,
-                3000,
-                false
-            );
-            return;
-        }
-
-        // Perform unlock
+        // Try to perform unlock (will auto-detect Lunar Client)
         LunarUnlockUtil.UnlockResult result = LunarUnlockUtil.unlockAll();
 
         if (result.isSuccess()) {
@@ -69,9 +58,14 @@ public class LunarUnlocker extends UtilityMod {
                 false
             );
         } else {
+            // Show more informative error
+            String errorMsg = result.getMessage();
+            if (errorMsg == null || errorMsg.isEmpty()) {
+                errorMsg = "Lunar Client not detected or unlock failed.";
+            }
             Vape.INSTANCE.getNotificationManager().show(
                 "LunarUnlocker",
-                result.getMessage(),
+                errorMsg,
                 NotificationType.WARNING,
                 4000,
                 false
