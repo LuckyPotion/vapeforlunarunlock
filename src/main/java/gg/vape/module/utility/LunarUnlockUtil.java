@@ -427,7 +427,25 @@ public final class LunarUnlockUtil {
 
             for (int i = 0; i < loaders.length; i++) {
                 ClassLoader loader = loaders[i];
-                System.out.println("[LunarUnlocker] Checking loader " + (i + 1) + ": " + loader.getClass().getName());
+                String originalName = loader.getClass().getName();
+                System.out.println("[LunarUnlocker] Checking loader " + (i + 1) + ": " + originalName);
+
+                // Special handling for Lunar's custom ClassLoader
+                String loaderName = originalName.toLowerCase();
+                System.out.println("[LunarUnlocker] Lowercase name: " + loaderName);
+                System.out.println("[LunarUnlocker] Contains 'lunar': " + loaderName.contains("lunar"));
+                System.out.println("[LunarUnlocker] Contains 'moonsworth': " + loaderName.contains("moonsworth"));
+
+                if (loaderName.contains("lunar") || loaderName.contains("moonsworth")) {
+                    System.out.println("[LunarUnlocker] Found Lunar ClassLoader! Enumerating loaded classes...");
+
+                    // Try to enumerate all loaded classes in this ClassLoader
+                    Object instance = scanLoadedClasses(loader);
+                    if (instance != null) {
+                        System.out.println("[LunarUnlocker] SUCCESS via class enumeration!");
+                        return instance;
+                    }
+                }
 
                 // Try to find any class with "Lunar" in its name
                 try {
@@ -468,6 +486,87 @@ public final class LunarUnlockUtil {
             return null;
         } catch (Exception e) {
             System.out.println("[LunarUnlocker] Exception in aggressive search: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Scan all loaded classes in a ClassLoader looking for Lunar Client
+     */
+    private static Object scanLoadedClasses(ClassLoader loader) {
+        try {
+            // Use reflection to access the ClassLoader's loaded classes
+            java.lang.reflect.Field classesField = ClassLoader.class.getDeclaredField("classes");
+            classesField.setAccessible(true);
+
+            @SuppressWarnings("unchecked")
+            java.util.Vector<Class<?>> classes = (java.util.Vector<Class<?>>) classesField.get(loader);
+
+            System.out.println("[LunarUnlocker] Found " + classes.size() + " loaded classes in Lunar ClassLoader");
+
+            // Look for classes that might be the main LunarClient class
+            int lunarClasses = 0;
+            for (Class<?> clazz : classes) {
+                String className = clazz.getName();
+
+                // Count Lunar-related classes for diagnostics
+                if (className.contains("lunar") || className.contains("moonsworth") || className.contains("Lunar")) {
+                    lunarClasses++;
+
+                    // Log potential main client classes
+                    if (className.endsWith("LunarClient") || className.contains("LunarClient$") ||
+                        className.matches(".*\\.LC$") || className.matches(".*\\.[A-Z]{2,}$")) {
+                        System.out.println("[LunarUnlocker] Potential main class: " + className);
+
+                        // Try to get singleton instance
+                        Object instance = tryGetSingletonInstance(clazz);
+                        if (instance != null) {
+                            System.out.println("[LunarUnlocker] Found working instance from: " + className);
+                            return instance;
+                        }
+                    }
+                }
+            }
+
+            System.out.println("[LunarUnlocker] Scanned " + lunarClasses + " Lunar-related classes, no singleton found");
+
+            // If we found many Lunar classes, try a broader search
+            if (lunarClasses > 50) {
+                System.out.println("[LunarUnlocker] Large Lunar codebase detected, trying broader patterns...");
+
+                for (Class<?> clazz : classes) {
+                    String className = clazz.getName();
+
+                    // Look for any class with singleton-like fields
+                    if (className.contains("lunar") || className.contains("moonsworth")) {
+                        try {
+                            // Check if this class has INSTANCE or getInstance
+                            java.lang.reflect.Field[] fields = clazz.getDeclaredFields();
+                            for (java.lang.reflect.Field field : fields) {
+                                if (field.getName().equals("INSTANCE") || field.getName().equals("instance")) {
+                                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                                        System.out.println("[LunarUnlocker] Found INSTANCE field in: " + className);
+                                        Object instance = tryGetSingletonInstance(clazz);
+                                        if (instance != null) {
+                                            return instance;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Continue
+                        }
+                    }
+                }
+            }
+
+            return null;
+        } catch (NoSuchFieldException e) {
+            System.out.println("[LunarUnlocker] Could not access ClassLoader.classes field (Java 9+?)");
+            return null;
+        } catch (Exception e) {
+            System.out.println("[LunarUnlocker] Exception scanning loaded classes: " + e.getMessage());
             e.printStackTrace();
             return null;
         }

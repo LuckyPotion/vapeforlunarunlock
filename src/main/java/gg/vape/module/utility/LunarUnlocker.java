@@ -20,6 +20,8 @@ import gg.vape.wrapper.impl.Minecraft;
  */
 public class LunarUnlocker extends UtilityMod {
 
+    private boolean hasUnlocked = false;
+
     public LunarUnlocker() {
         super("LunarUnlocker", "Unlocks all Lunar Client cosmetics (1.8.9)");
         // Make visible by default so users can find it
@@ -28,9 +30,6 @@ public class LunarUnlocker extends UtilityMod {
 
     @Override
     public void onEnable() {
-        // Immediately disable - this is a one-shot action module
-        this.setEnabled(false);
-
         // Check if player is in world
         if (Minecraft.thePlayer().isNull()) {
             Vape.INSTANCE.getNotificationManager().show(
@@ -40,6 +39,7 @@ public class LunarUnlocker extends UtilityMod {
                 3000,
                 false
             );
+            this.setEnabled(false);
             return;
         }
 
@@ -47,6 +47,7 @@ public class LunarUnlocker extends UtilityMod {
         LunarUnlockUtil.UnlockResult result = LunarUnlockUtil.unlockAll();
 
         if (result.isSuccess()) {
+            hasUnlocked = true;
             String message = result.getMessage();
             if (message == null || message.isEmpty()) {
                 message = "Successfully unlocked Lunar cosmetics!";
@@ -71,6 +72,22 @@ public class LunarUnlocker extends UtilityMod {
                 4000,
                 false
             );
+            // Auto-disable if unlock failed
+            this.setEnabled(false);
         }
+    }
+
+    @Override
+    public void onDisable() {
+        if (hasUnlocked) {
+            Vape.INSTANCE.getNotificationManager().show(
+                "LunarUnlocker",
+                "Disabled (cosmetics remain unlocked)",
+                NotificationType.INFO,
+                2000,
+                false
+            );
+        }
+        hasUnlocked = false;
     }
 }
